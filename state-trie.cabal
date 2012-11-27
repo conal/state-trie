@@ -1,0 +1,27 @@
+Name:                state-trie
+Version:             0.1
+Cabal-Version:       >= 1.6
+Synopsis:            Memoizing state monad
+Category:            Data,
+Description:
+  Memoizing state monad, using tries
+  .
+Author:              Conal Elliott
+Maintainer:          conal@conal.net
+Copyright:           (c) 2012 by Conal Elliott
+License:             BSD3
+License-File:        COPYING
+Stability:           experimental
+build-type:          Simple
+
+source-repository head
+  type:     git
+  location: git://github.com/conal/state-trie.git
+
+Library
+  hs-Source-Dirs:      src
+  Extensions:
+  Build-Depends:       base<5, mtl, functor-combo >= 0.3.1
+  Exposed-Modules:     
+                       Data.StateTrie
+  ghc-options:         -Wall
