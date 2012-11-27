@@ -1,16 +1,12 @@
 {-# LANGUAGE TypeOperators, TupleSections #-}
-{-# LANGUAGE FlexibleContexts, FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
 
 {-# OPTIONS_GHC -Wall #-}
 
--- {-# OPTIONS_GHC -fno-warn-unused-imports #-} -- TEMP
--- {-# OPTIONS_GHC -fno-warn-unused-binds   #-} -- TEMP
-
 ----------------------------------------------------------------------
 -- |
--- Module      :  StateTrie
--- Copyright   :  (c) Conal Elliott 2010-2012
+-- Module      :  Data.StateTrie
+-- Copyright   :  (c) Conal Elliott 2012
 -- License     :  BSD3
 -- 
 -- Maintainer  :  conal@conal.net
@@ -28,35 +24,40 @@ module Data.StateTrie
 
 import Control.Arrow (first)
 import Control.Applicative (Applicative(..))
--- import Control.Monad (join)
 
--- import Control.Monad.Trans.State -- transformers
 import Control.Monad.State -- mtl
 
-import FunctorCombo.StrictMemo -- functor-combo >= 0.2.3 (for idTrie, onUntrie)
+import FunctorCombo.StrictMemo (HasTrie(..),(:->:),idTrie)
 
--- import Control.Compose (result,(<~))
 
+-- | 'StateTrie' inner representation
 type StateTrieX s a = s :->: (a,s) 
 
+-- | Memoizing state monad
 newtype StateTrie s a = StateTrie { unStateTrie :: StateTrieX s a }
 
+-- | Operate inside a 'StateTrie'.
 inStateTrie :: (StateTrieX s a -> StateTrieX t b)
      -> (StateTrie  s a -> StateTrie  t b)
 inStateTrie = StateTrie <~ unStateTrie
 
 {- unused
+
 inStateTrie2 :: (StateTrieX s a -> StateTrieX t b -> StateTrieX u c)
              -> (StateTrie  s a -> StateTrie  t b -> StateTrie  u c)
 inStateTrie2 = inStateTrie <~ unStateTrie
+
 -}
 
+-- | Run a memoized stateful computation
 runStateTrie :: HasTrie s => StateTrie s a -> s -> (a,s)
 runStateTrie (StateTrie t) = untrie t
 
+-- | Run a memoized stateful computation and return just value
 evalStateTrie :: HasTrie s => StateTrie s a -> s -> a
 evalStateTrie = (result.result) fst runStateTrie
 
+-- | Run a memoized stateful computation and return just state
 execStateTrie :: HasTrie s => StateTrie s a -> s -> s
 execStateTrie = (result.result) snd runStateTrie
 
@@ -67,30 +68,34 @@ instance HasTrie s => Applicative (StateTrie s) where
   pure a = StateTrie (fmap (a,) idTrie)
   (<*>)  = inState2 (<*>)
 
+-- | 'State'-to-'StateTrie' adapter
 fromState :: HasTrie s => State s a -> StateTrie s a
 fromState = StateTrie . trie . runState
 
+-- | 'StateTrie'-to-'State' adapter
 toState :: HasTrie s => StateTrie s a -> State s a
 toState = state . untrie . unStateTrie
 
+-- | Transform using 'State' view
 inState :: (HasTrie s, HasTrie t) =>
-           (   State s a ->    State t b)
+           (State     s a -> State     t b)
         -> (StateTrie s a -> StateTrie t b)
 inState = fromState <~ toState
 
+-- | Transform using 'State' view
 inState2 :: (HasTrie s, HasTrie t, HasTrie u) =>
-            (   State s a ->    State t b ->    State u c)
+            (State     s a -> State     t b -> State     u c)
          -> (StateTrie s a -> StateTrie t b -> StateTrie u c)
 inState2 = inState <~ toState
 
 instance HasTrie s => Monad (StateTrie s) where
   return  = pure
-  m >>= f = joinMS (fmap f m)
+  m >>= f = joinST (fmap f m)
 
-joinMS :: HasTrie s => StateTrie s (StateTrie s a) -> StateTrie s a
-joinMS = fromState . join . fmap toState . toState
+joinST :: HasTrie s => StateTrie s (StateTrie s a) -> StateTrie s a
+joinST = fromState . join . fmap toState . toState
 
--- joinStateTrie = inState (join . fmap toState)
+-- joinST = inState (join . fmap toState)
 
 instance HasTrie s => MonadState s (StateTrie s) where
   state = StateTrie . trie
@@ -99,23 +104,11 @@ instance HasTrie s => MonadState s (StateTrie s) where
     Misc
 --------------------------------------------------------------------}
 
--- Copied & specialized from TypeCompose, to avoid the package dependency
-
--- | Add pre-processing
-argument :: (a' -> a) -> ((a -> b) -> (a' -> b))
-argument = flip (.)
+-- | Add post- & pre-processing
+(<~) :: (b -> b') -> (a' -> a) -> ((a -> b) -> (a' -> b'))
+(h <~ f) g = h . g . f
 
 -- | Add post-processing
 result :: (b -> b') -> ((a -> b) -> (a -> b'))
 result = (.)
-
-infixr 1 ~>
-infixl 1 <~
-
--- | Add pre- and post processing
-(~>) :: (a' -> a) -> (b -> b') -> ((a -> b) -> (a' -> b'))
--- (f ~> h) g = h . g . f
-f ~> h = result h . argument f
-
-(<~) :: (b -> b') -> (a' -> a) -> ((a -> b) -> (a' -> b'))
-(<~) = flip (~>)
+-- result = (<~ id)
