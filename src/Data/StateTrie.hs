@@ -27,18 +27,18 @@ import Control.Applicative (Applicative(..))
 
 import Control.Monad.State -- mtl
 
-import FunctorCombo.StrictMemo (HasTrie(..),(:->:),idTrie)
+import FunctorCombo.StrictMemo (HasTrie(..),(:->:))
 
 
 -- | 'StateTrie' inner representation
-type StateTrieX s a = s :->: (a,s) 
+type StateTrieX s a = s :->: (a,s)
 
 -- | Memoizing state monad
 newtype StateTrie s a = StateTrie { unStateTrie :: StateTrieX s a }
 
 -- | Operate inside a 'StateTrie'.
 inStateTrie :: (StateTrieX s a -> StateTrieX t b)
-     -> (StateTrie  s a -> StateTrie  t b)
+            -> (StateTrie  s a -> StateTrie  t b)
 inStateTrie = StateTrie <~ unStateTrie
 
 {- unused
@@ -62,10 +62,10 @@ execStateTrie :: HasTrie s => StateTrie s a -> s -> s
 execStateTrie = (result.result) snd runStateTrie
 
 instance HasTrie s => Functor (StateTrie s) where
-  fmap = inStateTrie.fmap.first
+  fmap = inStateTrie . fmap . first
 
 instance HasTrie s => Applicative (StateTrie s) where
-  pure a = StateTrie (fmap (a,) idTrie)
+  pure a = StateTrie (trie (a,))
   (<*>)  = inState2 (<*>)
 
 -- | 'State'-to-'StateTrie' adapter
@@ -99,6 +99,8 @@ joinST = fromState . join . fmap toState . toState
 
 instance HasTrie s => MonadState s (StateTrie s) where
   state = StateTrie . trie
+
+-- TODO: Perhaps use 'state' in the definitions of pure and fromState.
 
 {--------------------------------------------------------------------
     Misc
