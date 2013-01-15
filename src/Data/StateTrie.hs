@@ -96,6 +96,7 @@ joinST :: HasTrie s => StateTrie s (StateTrie s a) -> StateTrie s a
 joinST = fromState . join . fmap toState . toState
 
 -- joinST = inState (join . fmap toState)
+--        = inState ((=<<) toState)
 
 instance HasTrie s => MonadState s (StateTrie s) where
   state = StateTrie . trie
